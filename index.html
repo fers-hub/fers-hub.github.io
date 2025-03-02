@@ -15,6 +15,7 @@
             margin: 0;
             font-family: 'Comic Neue', cursive;
             background-color: #e6f3ff;
+            touch-action: manipulation; /* Prevent mobile zoom */
         }
         h1 {
             font-size: 2.8em;
@@ -30,8 +31,10 @@
             background-color: #ccffcc;
             border: 3px solid #4a2f1d;
             border-radius: 5px;
+            max-width: 100vw;
+            max-height: 100vh;
         }
-        #score {
+        #score, #timerDisplay {
             font-size: 1.3em;
             color: #006600;
             margin-top: 15px;
@@ -57,69 +60,101 @@
         button:hover {
             background-color: #e68a00;
         }
+        /* Mobile Controls */
+        #controls {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            margin: 10px;
+            background-color: #ff9900;
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 1.5em;
+            cursor: pointer;
+        }
+        @media (max-width: 768px) {
+            #controls {
+                display: flex;
+                justify-content: center;
+            }
+        }
     </style>
 </head>
 <body>
     <h1>Bunny Carrot Quest</h1>
-    <p>Move with arrow keys to collect all carrots!</p>
+    <p>Move with arrow keys or touch controls to collect all carrots before time runs out!</p>
     <canvas id="gameCanvas"></canvas>
     <p id="score">Level: 1 - Carrots: 0 / 4</p>
+    <p id="timerDisplay">Time Left: 60s</p>
     <p id="winMessage"></p>
     <button id="resetButton">Play Again</button>
+
+    <!-- Mobile Controls -->
+    <div id="controls">
+        <button class="control-btn" id="leftBtn">←</button>
+        <button class="control-btn" id="upBtn">↑</button>
+        <button class="control-btn" id="downBtn">↓</button>
+        <button class="control-btn" id="rightBtn">→</button>
+    </div>
+
+    <!-- Carrot Image (hidden) -->
     <img id="carrotImage" src="carrot.png" style="display:none;" alt="Carrot">
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreDisplay = document.getElementById('score');
+        const timerDisplay = document.getElementById('timerDisplay');
         const winMessage = document.getElementById('winMessage');
         const resetButton = document.getElementById('resetButton');
         const carrotImage = document.getElementById('carrotImage');
 
         const cellSize = 20;
-        let maze, bunny, carrots, carrotCount, mazeSize, totalCarrots;
+        let maze, bunny, carrots, carrotCount, mazeSize, totalCarrots, timeLeft, timerInterval;
         let currentLevel = 0;
 
-        const levels = [
-            {
-                maze: [
-                    [1,1,1,1,1,1,1,1],
-                    [1,0,0,0,0,0,0,1],
-                    [1,0,1,1,1,1,0,1],
-                    [1,0,0,0,0,1,0,1],
-                    [1,0,1,0,0,0,0,1],
-                    [1,0,1,1,1,1,0,1],
-                    [1,0,0,0,0,0,0,1],
-                    [1,1,1,1,1,1,1,1]
-                ],
-                size: 8,
-                totalCarrots: 4,
-                startPos: {x: 1, y: 1}
-            },
-            {
-                maze: [
-                    [1,1,1,1,1,1,1,1,1,1],
-                    [1,0,0,0,1,0,0,0,0,1],
-                    [1,0,1,0,1,0,1,1,0,1],
-                    [1,0,1,0,0,0,0,1,0,1],
-                    [1,0,1,1,1,1,0,1,0,1],
-                    [1,0,0,0,0,1,0,0,0,1],
-                    [1,1,1,1,0,1,0,1,0,1],
-                    [1,0,0,0,0,0,0,1,0,1],
-                    [1,0,1,1,1,1,0,0,0,1],
-                    [1,1,1,1,1,1,1,1,1,1]
-                ],
-                size: 10,
-                totalCarrots: 6,
-                startPos: {x: 1, y: 1}
-            }
-        ];
+        // Generate 50 levels
+        const levels = Array.from({ length: 50 }, (_, i) => {
+            const size = 8 + Math.floor(i / 10) * 2; // 8x8 to 18x18
+            const carrots = 4 + i; // 4 to 53 carrots
+            const timeLimit = Math.max(30, 60 - i * 2); // 60s to 30s
+            return {
+                maze: generateMaze(size),
+                size: size,
+                totalCarrots: carrots,
+                timeLimit: timeLimit,
+                startPos: { x: 1, y: 1 }
+            };
+        });
 
-        function startGame() {
-            currentLevel = 0;
-            loadLevel(currentLevel);
+        // Maze generation using recursive backtracking
+        function generateMaze(size) {
+            const maze = Array.from({ length: size }, () => Array(size).fill(1));
+            function carve(x, y) {
+                maze[y][x] = 0;
+                const directions = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+                directions.sort(() => Math.random() - 0.5);
+                for (const [dx, dy] of directions) {
+                    const nx = x + dx * 2, ny = y + dy * 2;
+                    if (nx > 0 && nx < size - 1 && ny > 0 && ny < size - 1 && maze[ny][nx] === 1) {
+                        maze[y + dy][x + dx] = 0;
+                        carve(nx, ny);
+                    }
+                }
+            }
+            carve(1, 1);
+            return maze;
         }
 
+        // Load a level
         function loadLevel(levelIndex) {
             const level = levels[levelIndex];
             maze = level.maze;
@@ -128,15 +163,14 @@
             bunny = { ...level.startPos };
             carrots = [];
             carrotCount = 0;
+            timeLeft = level.timeLimit;
             winMessage.textContent = '';
+            timerDisplay.textContent = `Time Left: ${timeLeft}s`;
 
             // Ensure bunny starts on an open path
-            while (maze[bunny.y][bunny.x] !== 0) {
-                bunny.x++;
-                if (bunny.x >= mazeSize) {
-                    bunny.x = 0;
-                    bunny.y++;
-                }
+            while (maze[bunny.y][bunny.x] === 1) {
+                bunny.x = (bunny.x + 1) % mazeSize;
+                if (bunny.x === 0) bunny.y = (bunny.y + 1) % mazeSize;
             }
 
             // Set canvas size
@@ -145,18 +179,21 @@
 
             spawnCarrots();
             render();
+            startTimer();
         }
 
+        // Spawn carrots randomly
         function spawnCarrots() {
             while (carrots.length < totalCarrots) {
                 let x = Math.floor(Math.random() * mazeSize);
                 let y = Math.floor(Math.random() * mazeSize);
                 if (maze[y][x] === 0 && (x !== bunny.x || y !== bunny.y)) {
-                    carrots.push({x, y});
+                    carrots.push({ x, y });
                 }
             }
         }
 
+        // Render the game
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             renderMaze();
@@ -169,7 +206,7 @@
             for (let y = 0; y < mazeSize; y++) {
                 for (let x = 0; x < mazeSize; x++) {
                     if (maze[y][x] === 1) {
-                        ctx.fillStyle = '#4a2f1d'; // Dark brown walls
+                        ctx.fillStyle = '#4a2f1d'; // Walls
                         ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
                     }
                 }
@@ -237,6 +274,7 @@
             }
         }
 
+        // Bunny movement
         function moveBunny(dx, dy) {
             const newX = bunny.x + dx;
             const newY = bunny.y + dy;
@@ -249,27 +287,7 @@
             }
         }
 
-        function collectCarrot() {
-            carrots = carrots.filter(carrot => {
-                if (carrot.x === bunny.x && carrot.y === bunny.y) {
-                    carrotCount++;
-                    return false; // Remove the carrot
-                }
-                return true;
-            });
-        }
-
-        function checkVictory() {
-            if (carrotCount === totalCarrots) {
-                if (currentLevel + 1 < levels.length) {
-                    currentLevel++;
-                    loadLevel(currentLevel);
-                } else {
-                    winMessage.textContent = 'Congratulations! You completed all levels!';
-                }
-            }
-        }
-
+        // Keyboard controls
         document.addEventListener('keydown', (e) => {
             e.preventDefault();
             switch (e.key) {
@@ -280,18 +298,60 @@
             }
         });
 
+        // Mobile controls
+        document.getElementById('upBtn').addEventListener('click', () => moveBunny(0, -1));
+        document.getElementById('downBtn').addEventListener('click', () => moveBunny(0, 1));
+        document.getElementById('leftBtn').addEventListener('click', () => moveBunny(-1, 0));
+        document.getElementById('rightBtn').addEventListener('click', () => moveBunny(1, 0));
+
+        // Carrot collection
+        function collectCarrot() {
+            carrots = carrots.filter(carrot => {
+                if (carrot.x === bunny.x && carrot.y === bunny.y) {
+                    carrotCount++;
+                    return false; // Remove the carrot
+                }
+                return true;
+            });
+        }
+
+        // Check for victory
+        function checkVictory() {
+            if (carrotCount === totalCarrots) {
+                clearInterval(timerInterval);
+                if (currentLevel + 1 < levels.length) {
+                    currentLevel++;
+                    loadLevel(currentLevel);
+                } else {
+                    winMessage.textContent = 'Congratulations! You completed all 50 levels!';
+                }
+            }
+        }
+
+        // Timer
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = `Time Left: ${timeLeft}s`;
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    winMessage.textContent = 'Time\'s up! Try again.';
+                    setTimeout(() => loadLevel(currentLevel), 2000);
+                }
+            }, 1000);
+        }
+
+        // Start and reset game
+        function startGame() {
+            currentLevel = 0;
+            loadLevel(currentLevel);
+        }
+
         resetButton.addEventListener('click', startGame);
 
-        // Ensure carrot image is loaded
-        carrotImage.onload = () => {
-            startGame(); // Start the game once the image is loaded
-        };
-
-        // Fallback if image fails to load
-        carrotImage.onerror = () => {
-            console.error('Carrot image failed to load. Using fallback shape.');
-            startGame(); // Start the game with fallback shape
-        };
+        // Start the game initially
+        startGame();
     </script>
 </body>
 </html>
