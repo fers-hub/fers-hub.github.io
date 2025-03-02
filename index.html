@@ -1,238 +1,235 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bunny Game</title>
-  <style>
-    #game-container {
-      text-align: center;
-      font-family: Arial, sans-serif;
-    }
-    #game-area {
-      position: relative;
-      width: 800px;
-      height: 600px;
-      background-color: lightblue;
-      margin: 20px auto;
-      border: 2px solid #333;
-      overflow: hidden;
-    }
-    #bunny {
-      position: absolute;
-      bottom: 0;
-      left: 375px; /* Centered initially */
-      width: 50px;
-      height: 50px;
-      background-color: brown;
-    }
-    .carrot {
-      position: absolute;
-      width: 20px;
-      height: 20px;
-      background-color: orange;
-    }
-    @keyframes jump {
-      0% { bottom: 0; }
-      50% { bottom: 100px; }
-      100% { bottom: 0; }
-    }
-    .jump {
-      animation: jump 0.5s ease;
-    }
-    #score, #timer {
-      font-size: 20px;
-      margin: 10px;
-    }
-    #start-button {
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bunny Carrot Quest</title>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Comic Neue', cursive;
+            background-color: #e6f3ff;
+        }
+        h1 {
+            font-size: 2.8em;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        p {
+            font-size: 1.3em;
+            color: #666;
+            margin: 5px 0;
+        }
+        canvas {
+            background-color: #ccffcc;
+            border: 3px solid #4a2f1d;
+            border-radius: 5px;
+        }
+        #score {
+            font-size: 1.3em;
+            color: #006600;
+            margin-top: 15px;
+        }
+        #winMessage {
+            font-size: 1.6em;
+            color: #ff4500;
+            margin-top: 15px;
+            font-weight: 700;
+        }
+        button {
+            margin-top: 25px;
+            padding: 12px 25px;
+            font-size: 1.3em;
+            font-family: 'Comic Neue', cursive;
+            background-color: #ff9900;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #e68a00;
+        }
+    </style>
 </head>
 <body>
-  <div id="game-container">
-    <div id="game-area">
-      <div id="bunny"></div>
-    </div>
-    <div id="score">Score: 0</div>
-    <div id="timer">Time: 60</div>
-    <button id="start-button">Start Game</button>
-  </div>
+    <h1>Bunny Carrot Quest</h1>
+    <p>Move with arrow keys to collect all carrots!</p>
+    <canvas id="gameCanvas" width="240" height="240"></canvas>
+    <p id="score">Carrots: 0 / 6</p>
+    <p id="winMessage"></p>
+    <button id="resetButton">Play Again</button>
 
-  <script>
-    // Get DOM elements
-    const gameArea = document.getElementById('game-area');
-    const bunny = document.getElementById('bunny');
-    const scoreDisplay = document.getElementById('score');
-    const timerDisplay = document.getElementById('timer');
-    const startButton = document.getElementById('start-button');
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const winMessage = document.getElementById('winMessage');
+        const resetButton = document.getElementById('resetButton');
 
-    // Game variables
-    let score = 0;
-    let timeLeft = 60;
-    let isGameRunning = false;
-    let bunnySpeed = 5;
-    let isMovingLeft = false;
-    let isMovingRight = false;
-    let isJumping = false;
-    let carrots = [];
-    let gameLoop, timer, carrotGenerator;
+        const cellSize = 20;
+        const mazeSize = 12;
+        const totalCarrots = 6;
 
-    // Start the game
-    function startGame() {
-      startButton.style.display = 'none';
-      score = 0;
-      timeLeft = 60;
-      scoreDisplay.textContent = 'Score: 0';
-      timerDisplay.textContent = 'Time: 60';
-      isGameRunning = true;
-      bunny.style.left = '375px';
-      bunny.style.bottom = '0px';
-      bunny.classList.remove('jump');
-      isJumping = false;
+        let maze, bunny, carrots, carrotCount;
 
-      // Clear existing carrots
-      carrots.forEach(carrot => carrot.remove());
-      carrots = [];
+        const mazeLayouts = [
+            [
+                [1,1,1,1,1,1,1,1,1,1,1,1],
+                [1,0,0,0,0,1,0,0,0,0,0,1],
+                [1,0,1,1,0,1,0,1,1,1,0,1],
+                [1,0,1,0,0,0,0,0,0,1,0,1],
+                [1,0,1,0,1,1,1,1,0,1,0,1],
+                [1,0,0,0,1,0,0,1,0,0,0,1],
+                [1,1,1,0,1,0,1,1,1,1,0,1],
+                [1,0,0,0,0,0,0,0,0,1,0,1],
+                [1,0,1,1,1,1,0,1,0,1,0,1],
+                [1,0,0,0,0,1,0,1,0,0,0,1],
+                [1,0,1,1,0,0,0,1,1,1,0,1],
+                [1,1,1,1,1,1,1,1,1,1,1,1],
+            ],
+            // Additional maze can be added here
+        ];
 
-      // Start game loop (50 FPS)
-      gameLoop = setInterval(updateGame, 20);
-
-      // Start timer countdown
-      timer = setInterval(() => {
-        timeLeft--;
-        timerDisplay.textContent = `Time: ${timeLeft}`;
-        if (timeLeft <= 0) {
-          endGame();
+        function startGame() {
+            maze = mazeLayouts[Math.floor(Math.random() * mazeLayouts.length)];
+            bunny = {x: 1, y: 1}; // Bunny starts at an open path
+            carrots = [];
+            carrotCount = 0;
+            winMessage.textContent = '';
+            spawnCarrots();
+            render();
         }
-      }, 1000);
 
-      // Generate carrots every second
-      carrotGenerator = setInterval(createCarrot, 1000);
-    }
-
-    // End the game
-    function endGame() {
-      clearInterval(gameLoop);
-      clearInterval(timer);
-      clearInterval(carrotGenerator);
-      isGameRunning = false;
-      startButton.style.display = 'block';
-      alert(`Game Over! Your score: ${score}`);
-    }
-
-    // Update game state each frame
-    function updateGame() {
-      if (!isGameRunning) return;
-
-      // Move bunny left
-      if (isMovingLeft) {
-        let left = parseInt(bunny.style.left);
-        left -= bunnySpeed;
-        if (left < 0) left = 0;
-        bunny.style.left = `${left}px`;
-      }
-
-      // Move bunny right
-      if (isMovingRight) {
-        let left = parseInt(bunny.style.left);
-        left += bunnySpeed;
-        if (left > 750) left = 750; // 800 - bunny width (50)
-        bunny.style.left = `${left}px`;
-      }
-
-      // Update carrots
-      carrots.forEach(carrot => {
-        let top = parseInt(carrot.style.top);
-        top += 5; // Falling speed
-        carrot.style.top = `${top}px`;
-
-        if (top > 580) {
-          // Carrot fell off screen
-          carrot.remove();
-          carrots = carrots.filter(c => c !== carrot);
-        } else if (isColliding(bunny, carrot)) {
-          // Carrot caught
-          score++;
-          scoreDisplay.textContent = `Score: ${score}`;
-          carrot.remove();
-          carrots = carrots.filter(c => c !== carrot);
+        function spawnCarrots() {
+            while (carrots.length < totalCarrots) {
+                let x = Math.floor(Math.random() * mazeSize);
+                let y = Math.floor(Math.random() * mazeSize);
+                if (maze[y][x] === 0 && (x !== bunny.x || y !== bunny.y)) {
+                    carrots.push({x, y});
+                }
+            }
         }
-      });
-    }
 
-    // Create a new carrot
-    function createCarrot() {
-      const carrot = document.createElement('div');
-      carrot.className = 'carrot';
-      carrot.style.left = `${Math.random() * 780}px`; // 800 - carrot width (20)
-      carrot.style.top = '0px';
-      gameArea.appendChild(carrot);
-      carrots.push(carrot);
-    }
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            renderMaze();
+            renderCarrots();
+            renderBunny();
+            scoreDisplay.textContent = `Carrots: ${carrotCount} / ${totalCarrots}`;
+        }
 
-    // Check collision between bunny and carrot
-    function isColliding(bunny, carrot) {
-      const bunnyStyle = getComputedStyle(bunny);
-      const bunnyBottom = parseFloat(bunnyStyle.bottom);
-      const bunnyLeft = parseFloat(bunnyStyle.left);
-      const bunnyTop = gameArea.offsetHeight - bunnyBottom - bunny.offsetHeight;
-      const carrotStyle = getComputedStyle(carrot);
-      const carrotTop = parseFloat(carrotStyle.top);
-      const carrotLeft = parseFloat(carrotStyle.left);
+        function renderMaze() {
+            for (let y = 0; y < mazeSize; y++) {
+                for (let x = 0; x < mazeSize; x++) {
+                    if (maze[y][x] === 1) {
+                        ctx.fillStyle = '#4a2f1d'; // Dark brown walls
+                        ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+                    }
+                }
+            }
+        }
 
-      const bunnyWidth = 50;
-      const bunnyHeight = 50;
-      const carrotWidth = 20;
-      const carrotHeight = 20;
+        function renderBunny() {
+            const x = bunny.x * cellSize + cellSize / 2;
+            const y = bunny.y * cellSize + cellSize / 2;
 
-      return bunnyLeft < carrotLeft + carrotWidth &&
-             bunnyLeft + bunnyWidth > carrotLeft &&
-             bunnyTop < carrotTop + carrotHeight &&
-             bunnyTop + bunnyHeight > carrotTop;
-    }
+            // Bunny body
+            ctx.fillStyle = '#808080'; // Gray
+            ctx.beginPath();
+            ctx.arc(x, y, 9, 0, Math.PI * 2);
+            ctx.fill();
 
-    // Keyboard controls
-    document.addEventListener('keydown', (e) => {
-      if (!isGameRunning) return;
-      switch (e.key) {
-        case 'ArrowLeft':
-          isMovingLeft = true;
-          break;
-        case 'ArrowRight':
-          isMovingRight = true;
-          break;
-        case 'ArrowUp':
-          if (!isJumping) {
-            isJumping = true;
-            bunny.classList.add('jump');
-          }
-          break;
-      }
-      e.preventDefault(); // Prevent page scrolling
-    });
+            // Ears
+            ctx.fillStyle = '#808080';
+            ctx.beginPath();
+            ctx.ellipse(x - 5, y - 10, 3, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(x + 5, y - 10, 3, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
 
-    document.addEventListener('keyup', (e) => {
-      switch (e.key) {
-        case 'ArrowLeft':
-          isMovingLeft = false;
-          break;
-        case 'ArrowRight':
-          isMovingRight = false;
-          break;
-      }
-    });
+            // Eyes
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(x - 4, y - 3, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x + 4, y - 3, 2, 0, Math.PI * 2);
+            ctx.fill();
 
-    // Reset jump state after animation
-    bunny.addEventListener('animationend', () => {
-      bunny.classList.remove('jump');
-      isJumping = false;
-    });
+            // Pupils
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(x - 4, y - 3, 1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x + 4, y - 3, 1, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
-    // Start game on button click
-    startButton.addEventListener('click', startGame);
-  </script>
+        function renderCarrots() {
+            ctx.fillStyle = '#ff6600';
+            carrots.forEach(carrot => {
+                const x = carrot.x * cellSize + cellSize / 2;
+                const y = carrot.y * cellSize + cellSize / 2;
+                ctx.beginPath();
+                ctx.moveTo(x, y - 6);
+                ctx.lineTo(x - 6, y + 4);
+                ctx.lineTo(x + 6, y + 4);
+                ctx.closePath();
+                ctx.fill();
+            });
+        }
+
+        function moveBunny(dx, dy) {
+            const newX = bunny.x + dx;
+            const newY = bunny.y + dy;
+            if (newX >= 0 && newX < mazeSize && newY >= 0 && newY < mazeSize && maze[newY][newX] === 0) {
+                bunny.x = newX;
+                bunny.y = newY;
+                collectCarrot();
+                render();
+                checkVictory();
+            }
+        }
+
+        function collectCarrot() {
+            carrots = carrots.filter(carrot => {
+                if (carrot.x === bunny.x && carrot.y === bunny.y) {
+                    carrotCount++;
+                    return false; // Remove the carrot
+                }
+                return true;
+            });
+        }
+
+        function checkVictory() {
+            if (carrotCount === totalCarrots) {
+                winMessage.textContent = 'Yay! You got all the carrots!';
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            e.preventDefault();
+            switch (e.key) {
+                case 'ArrowUp': moveBunny(0, -1); break;
+                case 'ArrowDown': moveBunny(0, 1); break;
+                case 'ArrowLeft': moveBunny(-1, 0); break;
+                case 'ArrowRight': moveBunny(1, 0); break;
+            }
+        });
+
+        resetButton.addEventListener('click', startGame);
+
+        startGame(); // Initialize the game
+    </script>
 </body>
 </html>
