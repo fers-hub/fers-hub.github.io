@@ -62,8 +62,8 @@
 <body>
     <h1>Bunny Carrot Quest</h1>
     <p>Move with arrow keys to collect all carrots!</p>
-    <canvas id="gameCanvas" width="240" height="240"></canvas>
-    <p id="score">Carrots: 0 / 6</p>
+    <canvas id="gameCanvas"></canvas>
+    <p id="score">Level: 1 - Carrots: 0 / 4</p>
     <p id="winMessage"></p>
     <button id="resetButton">Play Again</button>
 
@@ -75,35 +75,65 @@
         const resetButton = document.getElementById('resetButton');
 
         const cellSize = 20;
-        const mazeSize = 12;
-        const totalCarrots = 6;
 
-        let maze, bunny, carrots, carrotCount;
+        let maze, bunny, carrots, carrotCount, mazeSize, totalCarrots;
+        let currentLevel = 0;
 
-        const mazeLayouts = [
-            [
-                [1,1,1,1,1,1,1,1,1,1,1,1],
-                [1,0,0,0,0,1,0,0,0,0,0,1],
-                [1,0,1,1,0,1,0,1,1,1,0,1],
-                [1,0,1,0,0,0,0,0,0,1,0,1],
-                [1,0,1,0,1,1,1,1,0,1,0,1],
-                [1,0,0,0,1,0,0,1,0,0,0,1],
-                [1,1,1,0,1,0,1,1,1,1,0,1],
-                [1,0,0,0,0,0,0,0,0,1,0,1],
-                [1,0,1,1,1,1,0,1,0,1,0,1],
-                [1,0,0,0,0,1,0,1,0,0,0,1],
-                [1,0,1,1,0,0,0,1,1,1,0,1],
-                [1,1,1,1,1,1,1,1,1,1,1,1],
-            ],
-            // Additional maze can be added here
+        const levels = [
+            {
+                maze: [
+                    [1,1,1,1,1,1,1,1],
+                    [1,0,0,0,0,0,0,1],
+                    [1,0,1,1,1,1,0,1],
+                    [1,0,0,0,0,1,0,1],
+                    [1,0,1,0,0,0,0,1],
+                    [1,0,1,1,1,1,0,1],
+                    [1,0,0,0,0,0,0,1],
+                    [1,1,1,1,1,1,1,1]
+                ],
+                size: 8,
+                totalCarrots: 4,
+                startPos: {x: 1, y: 1}
+            },
+            {
+                maze: [
+                    [1,1,1,1,1,1,1,1,1,1],
+                    [1,0,0,0,1,0,0,0,0,1],
+                    [1,0,1,0,1,0,1,1,0,1],
+                    [1,0,1,0,0,0,0,1,0,1],
+                    [1,0,1,1,1,1,0,1,0,1],
+                    [1,0,0,0,0,1,0,0,0,1],
+                    [1,1,1,1,0,1,0,1,0,1],
+                    [1,0,0,0,0,0,0,1,0,1],
+                    [1,0,1,1,1,1,0,0,0,1],
+                    [1,1,1,1,1,1,1,1,1,1]
+                ],
+                size: 10,
+                totalCarrots: 6,
+                startPos: {x: 1, y: 1}
+            }
+            // Add more levels here if desired
         ];
 
         function startGame() {
-            maze = mazeLayouts[Math.floor(Math.random() * mazeLayouts.length)];
-            bunny = {x: 1, y: 1}; // Bunny starts at an open path
+            currentLevel = 0;
+            loadLevel(currentLevel);
+        }
+
+        function loadLevel(levelIndex) {
+            const level = levels[levelIndex];
+            maze = level.maze;
+            mazeSize = level.size;
+            totalCarrots = level.totalCarrots;
+            bunny = { ...level.startPos }; // Copy start position
             carrots = [];
             carrotCount = 0;
             winMessage.textContent = '';
+
+            // Set canvas size
+            canvas.width = mazeSize * cellSize;
+            canvas.height = mazeSize * cellSize;
+
             spawnCarrots();
             render();
         }
@@ -123,7 +153,7 @@
             renderMaze();
             renderCarrots();
             renderBunny();
-            scoreDisplay.textContent = `Carrots: ${carrotCount} / ${totalCarrots}`;
+            scoreDisplay.textContent = `Level: ${currentLevel + 1} - Carrots: ${carrotCount} / ${totalCarrots}`;
         }
 
         function renderMaze() {
@@ -213,7 +243,12 @@
 
         function checkVictory() {
             if (carrotCount === totalCarrots) {
-                winMessage.textContent = 'Yay! You got all the carrots!';
+                if (currentLevel + 1 < levels.length) {
+                    currentLevel++;
+                    loadLevel(currentLevel);
+                } else {
+                    winMessage.textContent = 'Congratulations! You completed all levels!';
+                }
             }
         }
 
