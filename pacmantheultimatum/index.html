@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pac-Man</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="200" height="200"></canvas>
+    <script>
+        // Get canvas and context
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Define the maze: 1 = wall, 0 = path
+        const maze = [
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,1,1,1,1,0,1],
+            [1,0,1,0,0,0,0,1,0,1],
+            [1,0,1,0,1,1,0,1,0,1],
+            [1,0,1,0,1,1,0,1,0,1],
+            [1,0,1,0,0,0,0,1,0,1],
+            [1,0,1,1,1,1,1,1,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        // Pac-Man properties
+        let pacman = {
+            x: 30, // Center of cell (1,1): 1*20 + 10
+            y: 30,
+            moving: false
+        };
+
+        // Variables for drag control
+        let isHolding = false;
+        let startX, startY;
+        let intendedDirection;
+        const speed = 2; // Pixels per frame
+
+        // Function to draw the maze
+        function drawMaze() {
+            for (let y = 0; y < 10; y++) {
+                for (let x = 0; x < 10; x++) {
+                    if (maze[y][x] === 1) {
+                        ctx.fillStyle = 'blue';
+                        ctx.fillRect(x * 20, y * 20, 20, 20);
+                    }
+                }
+            }
+        }
+
+        // Mouse event handlers
+        canvas.addEventListener('mousedown', (e) => {
+            isHolding = true;
+            startX = e.clientX;
+            startY = e.clientY;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isHolding) {
+                let deltaX = e.clientX - startX;
+                let deltaY = e.clientY - startY;
+                if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                    intendedDirection = deltaX > 0 ? 'right' : 'left';
+                } else {
+                    intendedDirection = deltaY > 0 ? 'down' : 'up';
+                }
+                pacman.moving = true;
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isHolding = false;
+            pacman.moving = false;
+        });
+
+        // Touch event handlers
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                isHolding = true;
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+            }
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (isHolding && e.touches.length === 1) {
+                let deltaX = e.touches[0].clientX - startX;
+                let deltaY = e.touches[0].clientY - startY;
+                if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                    intendedDirection = deltaX > 0 ? 'right' : 'left';
+                } else {
+                    intendedDirection = deltaY > 0 ? 'down' : 'up';
+                }
+                pacman.moving = true;
+            }
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            if (e.touches.length === 0) {
+                isHolding = false;
+                pacman.moving = false;
+            }
+        });
+
+        // Game loop
+        function gameLoop() {
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw the maze
+            drawMaze();
+
+            // Move Pac-Man if moving
+            if (pacman.moving) {
+                let newX = pacman.x;
+                let newY = pacman.y;
+                if (intendedDirection === 'right') {
+                    newX += speed;
+                } else if (intendedDirection === 'left') {
+                    newX -= speed;
+                } else if (intendedDirection === 'up') {
+                    newY -= speed;
+                } else if (intendedDirection === 'down') {
+                    newY += speed;
+                }
+
+                // Check if new position is within a path cell
+                let cellX = Math.floor(newX / 20);
+                let cellY = Math.floor(newY / 20);
+                if (cellX >= 0 && cellX < 10 && cellY >= 0 && cellY < 10 && maze[cellY][cellX] === 0) {
+                    pacman.x = newX;
+                    pacman.y = newY;
+                }
+            }
+
+            // Draw Pac-Man
+            ctx.beginPath();
+            ctx.arc(pacman.x, pacman.y, 10, 0, 2 * Math.PI);
+            ctx.fillStyle = 'yellow';
+            ctx.fill();
+
+            // Request next frame
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game
+        gameLoop();
+    </script>
+</body>
+</html>
